@@ -24,7 +24,7 @@ UNGrowth %>% select(where(is.factor)) %>%
   glimpse()
 
 # sample sizes by region
-UNGrowth %>% count(region, .drop = 'none')
+UNGrowth %>% count(region)
 
 # summaries
 UNGrowth %>% 
@@ -138,6 +138,58 @@ grid.arrange(dis.fert, dis.ppgdp,
              dis.lifeExpF, dis.pctUrban, 
              dis.infantMortality, dis.gr, 
              ncol = 3, nrow = 2)
+
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+# Correlation
+cor_gf <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(Fertility=cor(gr, fertility))
+
+cor_gp <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(Ppgdp=cor(gr, ppgdp))
+
+cor_gl <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(LifeExpF=cor(gr, lifeExpF))
+
+cor_gpU <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(PctUrban=cor(gr, pctUrban))
+
+cor_gi <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(InfantMortality=cor(gr, infantMortality))
+
+merge(cor_gf,
+      merge(cor_gp,
+            merge(cor_gl,
+                  merge(cor_gpU,cor_gi,
+                        by="region"),
+                  by="region"),
+            by="region"),
+      by="region")  
+#-------------------------------------------------------------------------------------------------------------------------------------------------
+# Correlation between factors
+library(plyr)
+corby <- function(D)
+{
+  return(data.frame(FertPpgdp = cor(D$fertility, D$ppgdp), 
+                    FertLifeEx = cor(D$fertility, D$lifeExpF), 
+                    FertPctU = cor(D$fertility, D$pctUrban),
+                    FertInfMort = cor(D$fertility, D$infantMortality),
+                    PpgdpLifeEx = cor(D$ppgdp, D$lifeExpF),
+                    PpgdpPctU = cor(D$ppgdp, D$pctUrban),
+                    PpgdpInfMort = cor(D$ppgdp, D$infantMortality),
+                    LifeExPctU = cor(D$lifeExpF, D$pctUrban),
+                    LifeExInfMort = cor(D$lifeExpF, D$infantMortality),
+                    PctUInfMort = cor(D$pctUrban, D$infantMortality)))
+}
+Ccors <- ddply(UNGrowth, .(region), corby)
+
+kable(Ccors, format="latex", booktabs=TRUE, linesep="", 
+      digits =3, caption = "")  %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
 
 #-------------------------------------------------------------------------------------------------------------------------------------------------
 # Histograms
