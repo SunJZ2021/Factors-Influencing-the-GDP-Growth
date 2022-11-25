@@ -1,0 +1,5 @@
+# Factors-Influencing-the-GDP-Growth: Growth Regression Study
+
+This research mainly aims to test the neoclassical economic growth models, which conclude that the GDP growth rate should be inversely correlated to per capita GDP. However, results in this report indicate that this theory might only hold among countries whose per capita GDP is above a certain level. The GDP growth rate appears to be correlated to fertility rate, and (logarithm of) per capita GDP quadratically. The percent of the population in urban areas is found to be negatively correlated to the GDP growth rate and no clear evidence that the effects of these determinants vary by region is found. After inspecting the factors affecting the GDP growth rate, several suggestions are recommended for governments to make appropriate policies to help foster economic growth.
+
+The data set used in this research is the national statistics collected from the United Nations mostly from 2009 to 2011, giving the information including average growth in the gross domestic product (GDP) per capita, the GDP per capita, and five national health, welfare, and education statistics for 166 countries.
