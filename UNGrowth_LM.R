@@ -5,7 +5,7 @@ library(ggplot2)
 library(gridExtra)
 library(cowplot)
 library(ggfortify)
-# _____________________________________________________
+# _____________________________________________________________________
 library(showtext)
 font_add_google("Oswald", "oswald")
 font_add_google("Roboto", "Roboto")
@@ -15,7 +15,7 @@ trace(grDevices::png, exit = quote({
   showtext::showtext_begin()
 }), print = FALSE)
 showtext_auto()
-# _____________________________________________________
+# _____________________________________________________________________
 
 UNGrowth <- read_csv("UNGrowth.csv")
 
@@ -42,7 +42,7 @@ hi.webs <- ggplot(UNGrowth,
 
 plot_grid(hi.we, hi.webs)
 
-# _____________________________________________________
+# _____________________________________________________________________
 # Scatterplots
 xy.fg <- ggplot(data = UNGrowth, 
                 aes(x = fertility, y = gr)) +
@@ -163,7 +163,7 @@ grid.arrange(hi.webs, xy.fg, xy.pg,
              xy.lg, xy.ug, xy.ig, 
              ncol = 3, nrow = 2)
 
-# _____________________________________________________
+# _____________________________________________________________________
 # Scatterplots (logarithm?)
 xy.fg.log <- ggplot(data = UNGrowth, 
                     aes(x = log(fertility), y = gr)) +
@@ -284,268 +284,144 @@ grid.arrange(hi.webs, xy.fg.log, xy.pg.log,
              xy.lg.log, xy.ug.log, xy.ig.log, 
              ncol = 3, nrow = 2)
 
-# _____________________________________________________
+#lm.al <- lm(gr~region*(fertility+ppgdp+lifeExpF
+#                    +pctUrban+infantMortality),
+#            data=UNGrowth[c(-49,-56,-88),])
+#anova(lm.al)
+#summary(lm.al)
+#lm.al.r <- lm(gr ~  fertility+ppgdp+pctUrban+region+
+#                fertility:region+ppgdp:region,
+#              data=UNGrowth[c(-49,-56,-88),])
+#anova(lm.al.r)
+#summary(lm.al.r)
+#lm.al.f <- lm(gr~(fertility+ppgdp+lifeExpF
+#                       +pctUrban+infantMortality)*region,
+#            data=UNGrowth[c(-49,-56,-88),])
+#anova(lm.al.f)
+#summary(lm.al)
+# _____________________________________________________________________
+# Full model
 library(car)
-# The model (not taking logarithm) (not deleting outliers)
-lm_full <- lm(gr ~ region*
-                (fertility + ppgdp + lifeExpF + 
-                   pctUrban + infantMortality), 
-              data = UNGrowth)
-anova(lm_full)
-summary(lm_full)
-vif(lm_full) #???
-autoplot(lm_full, which = c(1, 3, 5, 2), 
+f = gr ~ region*(fertility+log(ppgdp)+lifeExpF+pctUrban+infantMortality+
+     I(fertility^2)+I((log(ppgdp))^2))
+lm.f <- lm(f,data=UNGrowth)
+anova(lm.f)
+summary(lm.f)
+vif(lm.f)
+
+autoplot(lm.f, which = c(1, 3, 5, 2), 
          ncol = 2, label.size = 3, 
          data=UNGrowth, colour='region', 
-         label.alpha = 0.5, label.family = "montse") 
-
-lm_r <- lm(gr ~ region+fertility+ppgdp+
-             region:ppgdp, data = UNGrowth)
-summary(lm_r)
-vif(lm_r) #???
-
-# _____________________________________________________
-# The model (non-linear) (deleting outliers)
-UNGrowth_do <- UNGrowth[c(-49,-88),]
-lm.al.log <- lm(gr ~ region*
-                  (fertility + I(fertility^2)+ 
-                     log(ppgdp) + lifeExpF + pctUrban + 
-                     infantMortality), 
-                data = UNGrowth_do)
-anova(lm.al.log)
-summary(lm.al.log)
-vif(lm.al.log) #???
-autoplot(lm.al.log, which = c(1, 3, 5, 2), 
-         ncol = 2, label.size = 3, 
-         data=UNGrowth_do, colour='region', 
          label.alpha = 0.5, label.family = "montse")
 
-lm.al.log.r <- lm(gr ~ region+fertility+I(fertility^2)+
-                    log(ppgdp)+pctUrban+region:log(ppgdp), 
-                  data = UNGrowth_do)
-summary(lm.al.log.r)
-vif(lm.al.log.r) #???
+library(lmtest)
+bptest(lm.f)
+
+lm.r <- lm(gr ~ region+fertility+pctUrban+infantMortality+
+             I(fertility^2)+I((log(ppgdp))^2)+region:log(ppgdp)+
+             region:I((log(ppgdp))^2), data = UNGrowth)
+summary(lm.r)
+vif(lm.r)
 
 # _____________________________________________________
-UNGrowth.scale <- data.frame(UNGrowth[1:2],scale(UNGrowth[3:8]))
+# Dropping outliers
+UNGrowth.drop <- UNGrowth[c(-49,-56,-88),]
+lm.f.drop <- lm(f,data=UNGrowth.drop)
+anova(lm.f.drop)
+summary(lm.f.drop)
+vif(lm.f.drop)
 
-hi.webs <- ggplot(UNGrowth.scale, 
-                  aes(x=gr, 
-                      color=region, 
-                      fill=region)) + 
-  geom_histogram(aes(y=after_stat(density)), bins=30) + 
-  theme(panel.background = element_blank()) +
-  theme(text=element_text(size=12,  family="montse"),
-        legend.position =c(0.8,0.8), 
-        legend.key.size = unit(0.65, 'cm'))+
-  labs(x="GDP growth rate", y="Density")
+bptest(lm.f.drop)
 
-xy.fg.scale <- ggplot(data = UNGrowth.scale, 
-                aes(x = fertility, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="Fertility", 
-       y="GDP growth rate")
+autoplot(lm.f.drop, which = c(1, 3, 5, 2), 
+         ncol = 2, label.size = 3, 
+         data=UNGrowth.drop, colour='region', 
+         label.alpha = 0.5, label.family = "montse")
 
-xy.pg.scale <- ggplot(data = UNGrowth.scale, 
-                aes(x = ppgdp, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="Ppgdp", 
-       y="GDP growth rate")
+#lm1 <- lm(gr ~ region*
+#            (fertility+log(ppgdp)+lifeExpF+
+#               pctUrban+infantMortality+
+#               I(fertility^2)+I((log(ppgdp))^2))-lifeExpF,
+#          data=UNGrowth.drop)
+#anova(lm1,lm.f.drop)
+#anova(lm1)
+#
+#lm2 <- lm(gr ~ region*
+#            (fertility+log(ppgdp)+lifeExpF+
+#               pctUrban+infantMortality+
+#               I(fertility^2)+I((log(ppgdp))^2))-
+#            lifeExpF-infantMortality ,
+#          data=UNGrowth.drop)
+#anova(lm2,lm.f.drop)
+#anova(lm2)
 
-xy.lg.scale <- ggplot(data = UNGrowth.scale, 
-                aes(x = lifeExpF, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="LifeExpF", 
-       y="GDP growth rate")
+lm.r.drop <- lm(gr ~ region+fertility+log(ppgdp)+pctUrban+
+             I(fertility^2)+I((log(ppgdp))^2), data = UNGrowth.drop)
 
-xy.ug.scale <- ggplot(data = UNGrowth.scale, 
-                aes(x = pctUrban, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="PctUrban", 
-       y="GDP growth rate")
+lm.a.drop <- lm(gr ~ region+fertility+log(ppgdp)+pctUrban+
+                  I(fertility^2)+I((log(ppgdp))^2)+
+                  region:I((log(ppgdp))^2), data = UNGrowth.drop)
+anova(lm.r.drop,lm.a.drop)
 
-xy.ig.scale <- ggplot(data = UNGrowth.scale, 
-                aes(x = infantMortality, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="InfantMortality", 
-       y="GDP growth rate")
+summary(lm.r.drop)
+vif(lm.r.drop)
+anova(lm.r.drop)
+anova(lm.r.drop,lm.f.drop)
 
-grid.arrange(hi.webs, xy.fg.scale, xy.pg.scale, 
-             xy.lg.scale, xy.ug.scale, xy.ig.scale, 
-             ncol = 3, nrow = 2)
+# _____________________________________________________
+# Deal with colinearity by assuming that it is caused by data itself
+# normalize data
+# ppgdp: take logarithm first and scale it
 
-# Normalized data, not taking logarithm, not deleting outliers
-lm_full.scale <- lm(gr ~ region*
-                      (fertility + ppgdp + lifeExpF + 
-                         pctUrban + infantMortality), 
-                    data = UNGrowth.scale)
-anova(lm_full.scale)
-summary(lm_full.scale)
-vif(lm_full.scale) #???
-autoplot(lm_full.scale, which = c(1, 3, 5, 2), 
+UNGrowth.scale <- data.frame(UNGrowth[1:2],
+                             scale(UNGrowth$fertility),
+                             scale(log(UNGrowth$ppgdp)),
+                             scale(UNGrowth$lifeExpF),
+                             scale(UNGrowth$pctUrban),
+                             scale(UNGrowth$infantMortality),
+                             scale(UNGrowth$gr))
+
+f.scale = scale.UNGrowth.gr. ~ region*
+  (scale.UNGrowth.fertility.+scale.log.UNGrowth.ppgdp..+
+     scale.UNGrowth.lifeExpF.+scale.UNGrowth.pctUrban.+
+     scale.UNGrowth.infantMortality.+
+     I(scale.UNGrowth.fertility.^2)+
+     I(scale.log.UNGrowth.ppgdp..^2))
+
+lm.f.scale <- lm(f.scale, data = UNGrowth.scale)
+anova(lm.f.scale)
+summary(lm.f.scale)
+vif(lm.f.scale)
+
+autoplot(lm.f.scale, which = c(1, 3, 5, 2), 
          ncol = 2, label.size = 3, 
          data=UNGrowth.scale, colour='region', 
          label.alpha = 0.5, label.family = "montse")
 
-lm_r.scale <- lm(gr ~ region+fertility+ppgdp+region:ppgdp, 
+lm.r.scale <- lm(scale.UNGrowth.gr. ~ 
+                   region+scale.UNGrowth.fertility.+
+                   scale.UNGrowth.pctUrban.+
+                   scale.UNGrowth.infantMortality.+
+                   I(scale.UNGrowth.fertility.^2)+
+                   I(scale.log.UNGrowth.ppgdp..^2)+
+                   region:scale.log.UNGrowth.ppgdp..+
+                   region:I(scale.log.UNGrowth.ppgdp..^2), 
                  data = UNGrowth.scale)
-summary(lm_r.scale)
-vif(lm_r.scale)
+summary(lm.r.scale)
 
-# _____________________________________________________
-# Normalized data, nonlinear, deleting outliers
-UNGrowth.scale.do <- data.frame(UNGrowth.scale[1:3],
-                                scale(log(UNGrowth[4])),
-                                UNGrowth.scale[5:8])[c(-49,-56),]
+# Drop outliers
+UNGrowth.scale.drop <- UNGrowth.scale[c(-49,-56,-88),]
+lm.f.scale.drop <- lm(f.scale, data = UNGrowth.scale.drop)
+anova(lm.f.scale.drop)
+summary(lm.f.scale.drop)
+vif(lm.f.scale.drop)
 
-a <- ggplot(data = UNGrowth.scale, 
-            aes(x = ppgdp, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="Ppgdp", 
-       y="GDP growth rate")
-
-b <- ggplot(data = UNGrowth.scale.do, 
-            aes(x = ppgdp, y = gr)) +
-  geom_point(aes(color = region), size = 2) +
-  theme(text=element_text(size=10,  family="montse"),
-        legend.justification = c("right", "top"),
-        legend.box.just = "right",
-        legend.key.size = unit(0.25, 'cm'),
-        legend.margin = margin(4, 4, 4, 4),
-        panel.grid.minor = element_line(
-          colour="lightgrey", linewidth=0.5), 
-        panel.background = element_blank(), 
-        axis.line = element_line(
-          linewidth = 1, 
-          colour = "black", 
-          linetype=1), 
-        legend.key = element_rect(
-          fill = "transparent", 
-          colour = "transparent"), 
-        legend.text = element_text(size = 12), 
-        legend.title = element_text(face = "bold", size=12)) +
-  labs(x="log(Ppgdp)", 
-       y="GDP growth rate")
-
-grid.arrange(a,b, ncol = 2, nrow = 1)
-
-lm.al.log.scale <- lm(gr ~ region*
-                        (fertility + I(fertility^2)+ 
-                           ppgdp + lifeExpF + pctUrban + 
-                           infantMortality), 
-                      data = UNGrowth.scale.do)
-anova(lm.al.log.scale)
-summary(lm.al.log.scale)
-vif(lm.al.log.scale)
-autoplot(lm.al.log.scale, which = c(1, 3, 5, 2), 
-         ncol = 2, label.size = 3, 
-         data=UNGrowth.scale.do, colour='region', 
-         label.alpha = 0.5, label.family = "montse")
-
-lm.al.log.scale.r <- lm(gr ~ region+fertility+
-                          I(fertility^2)+ppgdp+region:ppgdp, 
-                        data = UNGrowth.scale.do)
-summary(lm.al.log.scale.r)
-vif(lm.al.log.scale.r)
+lm.r.scale.drop <- lm(scale.UNGrowth.gr. ~ 
+                        region+scale.UNGrowth.fertility.+
+                        scale.log.UNGrowth.ppgdp..+
+                        scale.UNGrowth.pctUrban.+
+                        I(scale.UNGrowth.fertility.^2)+
+                        I(scale.log.UNGrowth.ppgdp..^2),
+                      data = UNGrowth.scale.drop)
+summary(lm.r.scale.drop)
+vif(lm.r.scale.drop)

@@ -1,0 +1,484 @@
+---
+title: "\\huge\\bf{Factors Influencing the GDP Growth}\\vspace{2em}"
+author: |
+  | ...
+  | *SoMaS, University of Sheffield*
+date: "November 2022\\vspace{10em}"
+abstract:
+  - "\\noindent This report mainly aims to test the neoclassical economic growth models, which conclude that the GDP growth rate should be inversely correlated to per capita GDP. However, results in this report indicate that this theory might only hold among countries whose per capita GDP is above a certain level. The GDP growth rate appears to be correlated to fertility rate, and (logarithm of) per capita GDP quadratically. The percent of the population in urban areas is found to be negatively correlated to the GDP growth rate and no clear evidence that the effects of these determinants vary by region is found. After inspecting the factors affecting the GDP growth rate, several suggestions are recommended for governments to make appropriate policies to help foster economic growth. \\thispagestyle{empty} \\newpage \\pagenumbering{arabic}"
+output:
+  bookdown::pdf_document2:
+    highlight:  breezedark
+    fig_width: 7
+    fig_height: 6
+    fig_caption: TRUE
+    df_print: kable
+    latex_engine: pdflatex
+    citation_package: natbib
+    number_sections: TRUE
+    extra_dependencies: "subfig"
+    toc: TRUE
+    toc_depth: 2
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{xcolor}
+  - \usepackage{amssymb}
+  - \usepackage{dcolumn}
+  - \usepackage[labelfont=bf,labelsep=period,font=small,textfont=sl,width=0.85\textwidth, tableposition=top]{caption}
+  - \usepackage{indentfirst}
+  - \setlength{\parindent}{2em}
+fontsize: 11pt
+papersize: A4
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+suppressMessages(library(stargazer))
+library(readr)
+library(dplyr)
+library(gtsummary)
+library(ggplot2)
+library(gridExtra)
+library(kableExtra)
+library(cowplot)
+library(patchwork)
+library(ggfortify)
+library(equatiomatic)
+library(showtext)
+font_add_google("Oswald", "oswald")
+font_add_google("Roboto", "Roboto")
+font_add_google("Gochi Hand", "gochi")
+font_add_google("Montserrat Alternates", "montse")
+trace(grDevices::png, exit = quote({
+  showtext::showtext_begin()
+}), print = FALSE)
+showtext_auto()
+
+knitr::opts_chunk$set(echo = FALSE, tidy=TRUE,fig.align='center',
+                 external=TRUE,
+                 echo=FALSE,
+                 warning=FALSE,
+                 fig.pos='H',
+                 tab.pos='H')
+UNGrowth <- read_csv("UNGrowth.csv")
+```
+\newpage
+\section{Introduction}
+\noindent Neoclassical economic models conclude that countries’ per capita GDP should be inversely correlated to their starting level of per-person income, which means that less developed countries would grow faster than rich countries under similar structural parameters for preferences and technology. Therefore, per capita GDP across countries should be promoted to convergence in the long run. This report will test this theory and investigate the possible determinants affecting the GDP growth rate using growth regression studies, where the GDP growth rate is associated with potential factors influenced by policies. Possible suggestions regarding economic policies to foster growth will also be discussed based on regression results.
+
+
+\section{Data preprocessing}
+\noindent The data set used in this report is the national statistics collected from the United Nations mostly from 2009 to 2011, giving the information including average growth in the gross domestic product (GDP) per capita, the GDP per capita, and five national health, welfare, and education statistics for 166 countries. Since there not exists any missing values, no further data clearing is required to be made to the raw data. \bigskip 
+
+The details of the data set are shown in Table \@ref(tab:data) below, and the data set contains:
+\begin{itemize}
+\item \tt country\rm: Country names
+\item \tt region\rm: Region of the world: Africa, Asia, Caribbean, Europe, America, Oceania.
+\item \tt fertility\rm: Total fertility rate, number of children per woman.
+\item \tt ppgdp\rm: Per capita gross domestic product (GDP) in US dollars.
+\item \tt lifeExpF\rm: Female life expectancy, years.
+\item \tt pctUrban\rm: Percent of population in urban areas.
+\item \tt infantMortality\rm: Infant deaths by age 1 year per 1000 live births.
+\item \tt gr\rm: GDP growth rate.
+\end{itemize}
+\bigskip
+\renewcommand{\arraystretch}{3}
+```{r data, echo=FALSE}
+data_sum <- UNGrowth %>%
+  select(-c(Country)) %>% 
+  tbl_summary(by = region,
+              statistic = all_continuous() ~ "{mean} ({sd})",
+              label = list(
+                fertility ~ "Fertility",
+                ppgdp ~ "Ppgdp",
+                lifeExpF ~ "LifeExpF",
+                pctUrban ~ "PctUrban",
+                infantMortality ~ "Infant-Mortality",
+                gr ~ "Gr")) %>%
+  add_overall() %>%
+  add_n() %>%
+  modify_header(label ~ "**Variable**") %>%
+  bold_labels()
+
+as_kable_extra(data_sum, format="latex", booktabs=TRUE, linesep="", digits =3, caption="National averages of per capita GDP growth and growth determinants in 6 different regions. Summary of raw data.", align = "lcllll") %>%
+  kable_styling(latex_options = "hold_position",
+                full_width = TRUE,
+                font_size = 9)
+
+```
+
+Data from all countries are treated as samples so the \tt country \rm will not be involved in the analysis.
+
+\section{Exploratory Data Analysis}
+```{r basicstats}
+cou <- UNGrowth %>% count(region)
+avgs <- UNGrowth %>% group_by(region) %>% summarise(avg.gr=mean(gr))
+```
+\noindent After exploring the data, it is found that there are overall 166 samples, where Africa has the largest sample size ($n=$ `r as.matrix(filter(cou, region=="Africa"))[2]`), while Caribbean has the smallest ($n=$ `r as.matrix(filter(cou, region=="Caribbean"))[2]`). A graphical summary is shown in Figure \@ref(fig:distributions), where distributions of all covariates are visualized using box plots. It is shown that the average GDP growth rate of these regions are relatively close to each other, with Asia having the highest (`r round(filter(avgs, region=="Asia")[2][[1]],2)`), Oceania having the lowest (`r round(filter(avgs, region=="Oceania")[2][[1]],2)`), and Africa, as well as Asia, being relatively more variable. All the covariates include outliers, and whether these outliers will influence the modelling will be inspected later.
+
+```{r distributions, fig.align="center", out.width="100%", fig.cap="Distribution of covariates by regions. Most growth determinants interested vary by region.", fig.retina=1, fig.pos="H"}
+dis.fert <- ggplot(UNGrowth, aes(x=region, y=fertility, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(0, 7, 1)) +
+  labs(x="", y="Fertility")
+
+dis.ppgdp <- ggplot(UNGrowth, aes(x=region, y=ppgdp, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(0, 110000, 22000)) +
+  labs(x="", y="Ppgdp")
+
+dis.lifeExpF <- ggplot(UNGrowth, aes(x=region, y=lifeExpF, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(40, 90, 5)) +
+  labs(x="", y="LifeExpF")
+
+dis.pctUrban <- ggplot(UNGrowth, aes(x=region, y=pctUrban, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(10, 100, 20)) +
+  labs(x="", y="PctUrban")
+
+dis.infantMortality <- ggplot(UNGrowth, aes(x=region, y=infantMortality, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(0, 130, 26)) +
+  labs(x="", y="Infant Mortality")
+
+dis.gr <- ggplot(UNGrowth, aes(x=region, y=gr, fill=region)) +
+  geom_boxplot(alpha=0.5) +
+  theme(legend.position="none", 
+        panel.grid.minor = element_line(
+          colour="lightgrey", linewidth=0.35),
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.7, colour = "black", linetype=1)) + 
+  scale_y_continuous(minor_breaks = seq(-5, 20, 4)) +
+  labs(x="", y="Gr")
+
+
+grid.arrange(dis.fert, dis.ppgdp, 
+             dis.lifeExpF, dis.pctUrban, 
+             dis.infantMortality, dis.gr, 
+             ncol = 2, nrow = 3)
+```
+The correlation coefficients between the growth determinants and the GDP growth rate are calculated in Table \@ref(tab:recors). Correlations in all regions with \tt fertility \rm are negative, suggesting that a high total fertility rate may cause a low GDP growth rate, while whether the correlations with all other factors are positive or negative varies by region. In addition, correlations with \tt ppgdp \rm in only America, Asia, and Europe are negative, which fits the theory that the per capita growth rate tends to be inversely related to the starting level of income per person. However, the precise relation will be analyzed using regression models in later sections.
+\renewcommand{\arraystretch}{1}
+```{r recors}
+attach(UNGrowth)
+cor_gf <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(Fertility=cor(gr, fertility))
+
+cor_gp <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(Ppgdp=cor(gr, ppgdp))
+
+cor_gl <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(LifeExpF=cor(gr, lifeExpF))
+
+cor_gpU <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(PctUrban=cor(gr, pctUrban))
+
+cor_gi <- UNGrowth %>%
+  group_by(region) %>%
+  summarise(InfantMortality=cor(gr, infantMortality))
+
+cors <- merge(cor_gf,
+              merge(cor_gp,
+                    merge(cor_gl,
+                          merge(cor_gpU,cor_gi,
+                                by="region"),
+                          by="region"),
+                    by="region"),
+              by="region")
+
+kable(cors, format="latex", booktabs=TRUE, linesep="", digits =3, caption="Correlations between the variable of interest, GDP growth rate, and covariates in different regions.") %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                full_width = FALSE)
+detach(UNGrowth)
+```
+Then the relations are further inspected graphically in Figure \@ref(fig:relations). Figure \@ref(fig:relations)(A) inspects the distributions of GDP growth rates in different regions, and it shows that generally, the GDP growth rates are normally distributed in all regions. Figures \@ref(fig:relations)(B)~(F) illustrate the linear association between GDP growth rate and all other covariates respectively. The correlations and whether or not these correlations vary by region are hard to be inspected in detail just from the figures since generally samples from the same region are not closely clustered in these figures. In addition, since the correlation coefficients calculated are all small, the associations could only be meaningfully analyzed by linear modelling.
+```{r relations, fig.align="center", out.width="100%", fig.cap="Scatter plots of GDP growth rate against all possible determinants.", fig.retina=2, fig.pos="ht"}
+hi.webs <- ggplot(UNGrowth, aes(x=gr, color=region, fill=region)) + 
+  geom_histogram(aes(y=after_stat(density)), bins=30) + 
+  theme(panel.background = element_blank()) +
+  theme(text=element_text(size=12,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.key.size = unit(0.65, 'cm'),
+        legend.title = element_text(face = "bold", size=12))+
+  labs(x="GDP growth rate", y="Density")
+
+xy.fg <- ggplot(data = UNGrowth, aes(x = fertility, y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=10,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="Fertility", y="GDP growth rate")
+
+xy.pg <- ggplot(data = UNGrowth, aes(x = ppgdp, y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=8,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="Ppgdp", y="GDP growth rate")
+
+xy.lg <- ggplot(data = UNGrowth, aes(x = lifeExpF, y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=10,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="LifeExpF", y="GDP growth rate")
+
+xy.ug <- ggplot(data = UNGrowth, aes(x = pctUrban, y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=10,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="PctUrban", y="GDP growth rate")
+
+xy.ig <- ggplot(data = UNGrowth, aes(x = infantMortality, y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=10,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="InfantMortality", y="GDP growth rate")
+
+patchwork <- hi.webs + xy.fg + xy.pg + xy.lg + xy.ug + xy.ig
+patchwork + plot_layout(ncol = 2, nrow = 3, widths = c(1,1), heights = c(1,1)) +
+  plot_annotation(tag_levels = "A") &
+  theme(plot.tag = element_text(face ="bold",family="montse"),
+        plot.tag.position=c(0,0))
+```
+Furthermore, the linear correlations between the covariates themselves are checked in Table \@ref(tab:cocors). Most of the modulus of these correlations seem to be large, with some even being larger than those between the GDP growth rate and the covariates. This suggests that there exists multicollinearity in the data which may cause model unreliability, and may need careful inspection during linear modelling.
+```{r cocors}
+suppressMessages(library(plyr))
+corby <- function(D)
+{
+  return(data.frame(FtPg = cor(D$fertility, D$ppgdp), 
+                    FtLe = cor(D$fertility, D$lifeExpF), 
+                    FtPu = cor(D$fertility, D$pctUrban),
+                    FtIm = cor(D$fertility, D$infantMortality),
+                    PgLe = cor(D$ppgdp, D$lifeExpF),
+                    PgPu = cor(D$ppgdp, D$pctUrban),
+                    PgIm = cor(D$ppgdp, D$infantMortality),
+                    LePu = cor(D$lifeExpF, D$pctUrban),
+                    LeIm = cor(D$lifeExpF, D$infantMortality),
+                    PuIm = cor(D$pctUrban, D$infantMortality)))
+}
+Ccors <- ddply(UNGrowth, .(region), corby)
+
+kable(Ccors, format="latex", booktabs=TRUE, linesep="", 
+      digits =3, caption = "Correlations between covariates themselves. The correlations seem to be strong which suggests the colinearity might need to be concerned.")  %>%
+  kable_styling(latex_options = c("striped", "hold_position"),
+                full_width = TRUE, font_size = 10)
+```
+
+\section{Modelling}
+\noindent Based on the results of the exploratory data analysis, all covariates and factors can be fitted into an encompassing model. However, before fitting the model, it is first observed that the variance of GDP growth rate decreases as per capita GDP increases, which suggests that there appears to be a non-linear relationship and might be better modelled on the logarithm scale. \tt ppgdp \rm and $\log(\tt ppgdp \rm)$ are compared in Figure @ref(fig:change1).
+
+```{r change1, fig.align="center", out.width="100%", fig.height = 2, fig.cap="Comparison between \\tt ppgdp \\rm and $\\log(\\tt ppgdp \rm)$ and it is found that the logarithm scale might be better for modelling.", fig.retina=1, fig.pos="H"}
+xy.pg.log <- ggplot(data = UNGrowth, aes(x = log(ppgdp), y = gr)) +
+  geom_point(aes(color = region), size = 1) +
+  theme(text=element_text(size=10,  family="montse"),
+        legend.justification = c("right", "top"),
+        legend.box.just = "right",
+        legend.key.size = unit(0.25, 'cm'),
+        legend.margin = margin(4, 4, 4, 4),
+        panel.grid.minor = element_line(colour="lightgrey", linewidth=0.5), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 1, colour = "black", linetype=1), 
+        legend.key = element_rect(fill = "transparent", colour = "transparent"), 
+        legend.text = element_text(size = 12), 
+        legend.title = element_text(face = "bold", size=12)) +
+  labs(x="ln(ppgdp)", y="GDP growth rate")
+
+grid.arrange(xy.pg, xy.pg.log, ncol = 2, nrow=1)
+```
+
+Furthermore, it can also be observed that the relation between GDP growth rate and \tt fertility\rm, as well as the relation between GDP growth rate and $\log(\tt ppgdp \rm)$, appear to be quadratic and this might challenge the neoclassical models. As a result, the association between GDP growth rate and all covariates is modelled as:
+\begin{equation}
+  G_r = (\mu + \alpha_r) + \beta_rf_{rj}+\gamma_r\log(g_{rj})+\delta_rl_{rj}+\zeta_rp_{rj}+\eta_rm_{rj}+\theta_rf_{rj}^2+\lambda_r(\log(g_{rj}))^2+\epsilon_{rj}, \label{eq:encom}
+\end{equation}
+with $r=$(Africa, America, Asia, Caribbean, Europe, Oceania) and $\epsilon_{rj} \sim N(0,\sigma^2)$ being independent, for $j=1,...,n_j$, where $n_j$ being the number of countries in each region. $f$, $g$, $l$, $p$ and $m$ represents \tt fertility\rm , \tt ppgdp\rm , \tt lifeExpF\rm , \tt pctUrban \rm and \tt infantMortality \rm respectively.
+
+```{r ecompass,eval=TRUE,  size="small", cache=FALSE, results="asis", warning = FALSE}
+f = gr ~ region*
+  (fertility+log(ppgdp)+lifeExpF+pctUrban+infantMortality+
+     I(fertility^2)+I((log(ppgdp))^2))
+lm.f <- lm(f,data=UNGrowth)
+stargazer(anova(lm.f), title="Summary of the encompassing model. A number of coefficients are not statistically significant.", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:Encom", align=T)
+```
+
+The results of fitted model \eqref{eq:encom} are summarized in Table \@ref(tab:Encom). The goodness-of-fit, $R^2=$ `r round(summary(lm.f)$r.squared,3)`, suggests moderate variability of GDP growth rate is explained by the model.
+
+```{r checkassum,  fig.ncol=2, out.width="100%", fig.pos="ht", fig.height = 6, fig.cap="Basic model assumptions checks. There seems to be some outliers affecting the pattern."}
+autoplot(lm.f, which = c(1, 3, 5, 2), 
+         ncol = 2, label.size = 3, 
+         data=UNGrowth, colour='region', 
+         label.alpha = 0.5, label.family = "montse") +
+  theme(text=element_text(size=10,  family="montse"), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.75, 
+                                 colour = "black", 
+                                 linetype=1),
+        legend.key.size = unit(0.1, 'cm'))
+```
+
+Basic model assumption checks are illustrated in Figure \@ref(fig:checkassum). It is shown that some of the outliers which are shown in Table \@ref(tab:outliers) may have affected the pattern in basic model assumption checks. They will be excluded from the analysis.
+
+```{r outliers}
+kable(UNGrowth[c(49,56,88),], format="latex", booktabs=TRUE, linesep="", digits =3, caption = "Possible outliers which may have effects.")  %>%
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+UNGrowth.drop <- UNGrowth[c(-49,-56,-88),]
+lm.f.drop <- lm(f,data=UNGrowth.drop)
+suppressMessages(library(lmtest))
+```
+
+After deleting the outliers, the model is re-fitted shown in Table \@ref(tab:ecomdrop). Basic model assumption checks are executed again and are illustrated in Figure \@ref(fig:checkassumdrop). Since in the scale-position plot, it is illustrated that the residuals are not perfectly evenly distributed, the homoscedasticity is additionally checked by Breusch-Pagan test and the high p-value (`r round(bptest(lm.f.drop)$p.value[1],3)`) suggests there is not enough evidence that heteroscedasticity is present in the regression model. Therefore, there is roughly no violation of the symmetry or homoscedasticity assumptions this time.
+
+```{r ecomdrop,eval=TRUE,  size="small", cache=FALSE, results="asis", warning = FALSE}
+stargazer(anova(lm.f.drop), title="Summary of the encompassing model fitted using the data set that have dropped outliers.", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:ecomdrop", align=T, table.placement="H")
+```
+
+```{r checkassumdrop,  fig.ncol=2, out.width="100%", fig.pos="H", fig.height = 6, fig.cap="Basic model assumptions checks of the model that have dropped outliers, no obvious violation of the symmetry or homoscedasticity assumptions found."}
+autoplot(lm.f.drop, which = c(1, 3, 5, 2), 
+         ncol = 2, label.size = 3, 
+         data=UNGrowth.drop, colour='region', 
+         label.alpha = 0.5, label.family = "montse") +
+  theme(text=element_text(size=10,  family="montse"), 
+        panel.background = element_blank(), 
+        axis.line = element_line(linewidth = 0.75, 
+                                 colour = "black", 
+                                 linetype=1),
+        legend.key.size = unit(0.1, 'cm'))
+```
+
+The ANOVA Table \@ref(tab:ecomdrop) suggests that the encompassing model can be simplified by repeating ANOVA tests and dropping the terms that are not statistically significant. Then the simplified model takes the form
+\begin{equation}
+  G_r = (\mu+\alpha_r)+\beta f_{rj}+\gamma \log(g_{rj})+\zeta p_{rj}+\theta f_{rj}^2 + \lambda (\log(g_{rj}))^2+\epsilon_{rj}, \label{eq:redeq}
+\end{equation}
+with $r=$(Africa, America, Asia, Caribbean, Europe, Oceania) and $\epsilon_{rj} \sim N(0,\sigma^2)$ being independent, for $j=1,...,n_j$, where $n_j$ being the number of countries in each region. 
+
+Whether this model is supported by the data is determined by ANOVA test in Table \@ref(tab:ano) and the high p-value suggests that the residual sum of squares of the encompassing model and the simplified model are not statistically different, so the more complex model can be dropped. Furthermore, the final working model is illustrated in Table \@ref(tab:wm) with no evidence suggesting further simplifications.
+
+```{r ano, eval=TRUE,  size="small", cache=FALSE, results="asis", warning = FALSE}
+lm.r.drop <- lm(gr ~ region+fertility+log(ppgdp)+pctUrban+
+             I(fertility^2)+I((log(ppgdp))^2), data = UNGrowth.drop)
+stargazer(anova(lm.r.drop,lm.f.drop), title="Testing the simplification. The high p value suggests failure to reject the simplified model.", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:ano", align=T, table.placement="H")
+```
+
+```{r wm, eval=TRUE,  size="small", cache=FALSE, results="asis", warning = FALSE}
+stargazer(anova(lm.r.drop), title="Summary of the working model. All parameters are statistically significant, no support for furhter simpliciation is supported", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:wm", align=T, table.placement="H")
+```
+
+Full details of the working model is illustrated in Table \@ref(tab:fitted), showing that the model fit is relatively weak with $R^2=$ `r round(summary(lm.r.drop)$r.squared,3)` which is not very large and indicates a certain degree of variability.
+
+```{r fitted, results='asis'}
+stargazer(lm.r.drop, title="Details of the working model. Goodness-of-fit is weak relatively and the estimated standard error is small.", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:fitted", align=T, table.placement="ht")
+```
+
+The fitted model can be formally represented by (\ref{eq: m})
+```{r m, results='asis'}
+extract_eq(lm.r.drop, use_coefs = F, wrap=TRUE, terms_per_line = 3, index_factors = F, operator_location="start", label = "m")
+```
+
+and the fitted equation is given by (\ref{eq: fm})
+```{r fm, results='asis'}
+   extract_eq(lm.r.drop, use_coefs = TRUE, wrap=TRUE, terms_per_line = 3, operator_location="start", label="fm")
+```
+
+Recall that multicollinearity has been found in the data set, the effect caused by this is then checked in Table \@ref(tab:vif) by calculating the variance inflation factors (VIF) and it is found that there are a few high VIFs which suggest that the colinearity in the data set has caused unreliability to the model to a certain extent.
+```{r vif, results='asis'}
+suppressMessages(library(car))
+stargazer(vif(lm.r.drop), title="Variance inflation factors. High VIFs have been found.", header=F, summary = F, font.size = "small", ci=T, no.space = T, label="tab:vif", align=T, table.placement="H")
+```
+
+\section{Results}
+\noindent Based on the fitted working model, it is possible to check the correlation between the GDP growth rate and starting level of income per person (i.e. \tt ppgdp\rm ) to test the theory in neoclassical economic growth models. The partial derivative of GDP growth rate (\tt gr\rm) with respect to per capita GDP (\tt ppgdp\rm) is calculated as follows:
+\begin{equation}
+  \frac{\partial \widehat{gr}}{\partial g} = -\frac{0.54\log(g)}{g}+\frac{4.47}{g},\label{eq:partial}
+\end{equation}
+where g represents for \tt ppgdp\rm, then it can be found that this partial derivative \eqref{eq:partial} is negative when
+\begin{equation}
+  g > e^{\frac{4.47}{0.54}} \approx 3935.44, \label{eq:res}
+\end{equation}
+which might suggest that there exists evidence supporting the neoclassical theory only in countries already having certain economic development since the association between the GDP growth rate and (logarithm of) per capita GDP is quadratic. For the countries below a certain level, the GDP growth rate increases as per capita GDP increases, while for the countries whose per capita GDP is above that level, the GDP growth rate is inversely correlated to per capita GDP, just the same as the neoclassical economic models conclude. 
+
+In general, the GDP growth rate might be linearly correlated to the percent of the population in urban areas, and quadratically correlated to the total fertility rate (i.e. the number of children per woman) and per capita GDP. There is no clear evidence that the effects of these factors (i.e. the coefficient in each term containing the factors interested) vary by region, and the difference is only the intercept. 
+
+In order to foster GDP growth, based on the results of the model, the government might first try to avoid too much crowding in large cities. However, since the effect (the coefficient) of the population in urban areas is relatively small, the population growth (fertility rate) and current per capita GDP should be taken more concern. For Instance, if a country's current per capita is extremely low, the government should probably make policies to improve it, such as absorbing investment or increasing government spending. While for a rich country, the government may focus on other factors such as technological innovation or finance.
+
+\section{Conclusions}
+\noindent To conclude, the statement that per capita GDP should be inversely correlated to starting level of per-person income has been tested using growth regression studies, possible determinants affecting GDP growth rate have been inspected, and possible policy suggestions have also been discussed. The results show that the neoclassical theory might only hold in countries with certain economic development and for countries with per capita GDP below that level, the GDP growth rate increases with per capita GDP. In addition, the results also show that the GDP growth rate might be linearly correlated with the percent of the population in urban areas, and quadratically correlated to the total fertility rate and (logarithm of) per capita GDP. Then governments might need to make appropriate policies given these results to foster growth.
+
+\section{Discussion}
+\noindent A number of potential problems or limitations might worth further consideration. Firstly, correlation may not imply causation. In this case, whether the fertility affects the GDP growth rate, or the GDP growth rate affects the fertility or both might still need inspection in reality. Furthermore, the final simplified model is not able to achieve the aim of this report perfectly. The model fit of the final model is relatively low with $R^2=$ `r round(summary(lm.r.drop)$r.squared,3)`, suggesting that a considerable amount of variability has not been captured by the model. In addition, the high variance inflation factors calculated in Table \@ref(tab:vif) suggest that the existence of colinearity affects the model's reliability. All these indicate that the covariates in the data set might not be suitable or enough to investigate the factors influencing the GDP growth rate. More data, such as data measuring technology, education, or government spending might be helpful to make the model more precise and useful.
